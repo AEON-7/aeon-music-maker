@@ -43,6 +43,72 @@ That's it. The tool talks to your ComfyUI server at `${COMFYUI_URL}`, runs the f
 
 The included `setup.sh` checks all of these and fetches missing pieces.
 
+## Configuration
+
+All configuration goes through environment variables (loaded from `.env` if present). Copy `.env.example` to `.env` and fill in your values, OR set the variables in your shell.
+
+### Where to run this CLI: local vs remote ComfyUI
+
+This tool is a **client** for a ComfyUI server — it sends workflow JSON to ComfyUI's HTTP API and receives back the generated audio. Two ways to run it:
+
+#### Mode A — Local (CLI runs on the same machine as ComfyUI)
+
+The simplest setup. ComfyUI is running at `http://127.0.0.1:8188` on your machine, and you run the CLI in the same terminal/shell. Set:
+
+```bash
+COMFYUI_URL=http://127.0.0.1:8188
+COMFYUI_ROOT=/path/to/your/local/ComfyUI    # optional — only if you want output in ComfyUI's tree
+```
+
+No SSH involved. Run scripts directly:
+
+```bash
+python scripts/music_maker.py --prompt "..." -o track.flac
+```
+
+#### Mode B — Remote (CLI runs on a different machine from ComfyUI)
+
+ComfyUI runs on a GPU box (workstation, DGX Spark, headless server) and you orchestrate from your laptop. Two sub-options:
+
+**B1 — Direct HTTP** (simplest if both machines are on the same LAN):
+```bash
+COMFYUI_URL=http://<gpu-box-ip>:8188
+# Don't set COMFYUI_ROOT — output will be written locally to ./output/
+```
+Make sure ComfyUI is started with `--listen 0.0.0.0` (default binding is loopback only) and that your firewall allows port 8188.
+
+**B2 — SSH tunnel** (more secure, no firewall changes):
+```bash
+# In a separate terminal, before running the CLI:
+ssh -L 8188:127.0.0.1:8188 user@<gpu-box-host>
+# Leave it running. Then in your CLI shell:
+COMFYUI_URL=http://127.0.0.1:8188   # tunnel forwards to remote ComfyUI
+```
+The CLI thinks it's talking to localhost; the SSH tunnel forwards to the remote ComfyUI process.
+
+### All environment variables
+
+| Variable | Required? | Default | What it is |
+|---|---|---|---|
+| `COMFYUI_URL` | required | `http://127.0.0.1:8188` | HTTP endpoint of your ComfyUI server. See "local vs remote" above. |
+| `COMFYUI_ROOT` | optional | (repo dir) | Path to ComfyUI install root. **Local mode only** — if set, output FLACs land in `${COMFYUI_ROOT}/output/music/`. Leave unset for remote mode. |
+| `OUTPUT_DIR` | optional | `${COMFYUI_ROOT}/output` or `./output` | Override where outputs land. |
+| `FFMPEG` | optional | `ffmpeg` from PATH | Full path to `ffmpeg` binary if not on PATH. |
+| `FFPROBE` | optional | `ffprobe` from PATH | Full path to `ffprobe` binary if not on PATH. |
+| `ACE_DEFAULT_VARIANT` | optional | `xl_base` | Default ACE variant when `--variant` is omitted. |
+| `MASTER_DEFAULT_PRESET` | optional | `auto` | Default mastering preset. Per-call `--master` always overrides. |
+| `HF_TOKEN` | optional | none | HuggingFace access token. Only needed if `setup.sh` is auto-downloading gated models. Get one free at https://huggingface.co/settings/tokens (Read scope is enough). |
+
+### How to know which model files you need
+
+Run `./setup.sh` after setting `COMFYUI_URL` + `COMFYUI_ROOT`. It checks for every required model file at the canonical path under `${COMFYUI_ROOT}/models/` and prints download commands for any missing ones. The fastest way to install the models:
+
+1. **Use ComfyUI Manager** (the in-browser UI button at the top of ComfyUI) — most ACE Step models are one-click installable.
+2. **`huggingface-cli download`** — for batch installs from `Lightricks` / `ace-step` HF repositories.
+3. **Manual download** from `https://huggingface.co/ace-step/ACE-Step-v1-3.5B` and place files at the paths `setup.sh` lists.
+
+`HF_TOKEN` is only needed for option 2 if any model is gated (most aren't).
+
 ## Usage
 
 ```
