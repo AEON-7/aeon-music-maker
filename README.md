@@ -109,6 +109,38 @@ Run `./setup.sh` after setting `COMFYUI_URL` + `COMFYUI_ROOT`. It checks for eve
 
 `HF_TOKEN` is only needed for option 2 if any model is gated (most aren't).
 
+## Updating an existing install
+
+If you cloned this repo before and want to pick up the latest changes, run:
+
+```bash
+cd /path/to/aeon-music-maker
+./sync.sh
+```
+
+The script:
+1. **Detects local uncommitted changes** and offers to stash + re-apply them after the pull
+2. **Shows a diff preview** — commit list + files-changed summary — before actually pulling
+3. **Asks for confirmation** before applying anything
+4. **Refreshes Python deps** via `pip install -r requirements.txt`
+5. **Re-runs the model delta-check** so any new models can be flagged
+
+### Flags
+
+| Flag | What it does |
+|---|---|
+| `./sync.sh` | Default — interactive, shows diff, prompts before pulling |
+| `./sync.sh --dry-run` (or `-n`) | Show what would change without actually pulling |
+| `./sync.sh --yes` (or `-y`) | Non-interactive — accept all prompts (CI / cron use) |
+| `./sync.sh --no-models` | Skip the model file check (faster if you know nothing changed there) |
+| `./sync.sh --help` | Print usage |
+
+### What if I customized something?
+
+The sync script auto-stashes any uncommitted local edits before pulling, then re-applies them. If your edits don't conflict with the incoming changes, you'll never notice. If they do, sync stops with clear instructions.
+
+`.env`, `output/`, `__pycache__/`, and other personal files are gitignored — they're never touched by sync.
+
 ## Usage
 
 ```
