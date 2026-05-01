@@ -1,0 +1,126 @@
+# aeon-music-maker
+
+> Standalone music generator with studio-grade dynamics-preserving mastering. Wraps ACE Step 1.5 XL (full-quality APG chain or fast distilled variants) with a one-pass mastering chain (HPF → EQ → tape saturation → LUFS gain-match → true-peak ceiling). FLAC-lossless output. Auto-detects the right mastering preset from your prompt.
+
+Part of the **AEON Media Production** family of agent-driven media tools.
+
+## What this gives you
+
+- **5 ACE Step variants** — `xl_base` (full fp32, 50 steps, APG chain) → `base_turbo` (8 steps, ~8 s per 90 s of audio). One CLI flag.
+- **6 mastering presets** — `default / edm / trap / chill / orchestral / jazz` — auto-picked from prompt keywords or pinned with `--master <preset>`. Tuned to preserve dynamics rather than crush them.
+- **Lossless 48 kHz stereo FLAC** by default; `.wav` and `.mp3` exports.
+- **Reproducibility via seeds** — every run prints the seed; same prompt + same seed = same track, byte-identical.
+- **Lyrics support** — ACE Step actually sings them. Pass with `--lyrics`.
+- **One command, no node graphs** — calls into ComfyUI under the hood; you never touch a workflow JSON.
+
+## Quick start
+
+```bash
+# 1. Clone + install deps
+git clone https://github.com/AEON-7/aeon-music-maker.git
+cd aeon-music-maker
+cp .env.example .env       # edit COMFYUI_ROOT + COMFYUI_URL
+./setup.sh                 # check ComfyUI, install python deps, fetch missing models
+
+# 2. Generate a track
+python scripts/music_maker.py \
+    --prompt "lofi jazz, warm Rhodes, brushed drums, vinyl crackle, rainy window" \
+    --duration 180 --bpm 78 --key "A minor" \
+    --variant xl_base --master auto \
+    -o my_first_track.flac
+```
+
+That's it. The tool talks to your ComfyUI server at `${COMFYUI_URL}`, runs the full APG chain, and writes a mastered FLAC to your chosen path.
+
+## Prerequisites
+
+- A running ComfyUI instance reachable at `${COMFYUI_URL}` (default `http://127.0.0.1:8188`)
+- Python 3.10+
+- ffmpeg + ffprobe on PATH (or set `FFMPEG`/`FFPROBE` env vars)
+- About 30 GB free disk for the full ACE Step model set (smaller variants are 5–10 GB each)
+
+The included `setup.sh` checks all of these and fetches missing pieces.
+
+## Usage
+
+```
+python scripts/music_maker.py [options]
+
+  --prompt STR            (required) comma-separated music descriptors
+  --duration FLOAT        track length in seconds (default 120, max ~240)
+  --bpm INT               tempo (default 75)
+  --key STR               key/scale, e.g. "A minor", "C# major" (default "A minor")
+  --lyrics STR_OR_PATH    literal lyrics OR path to .txt file (default empty = instrumental)
+  --variant {xl_base|xl_sft|xl_base_sft|xl_turbo|base_turbo}  (default xl_base)
+  --steps INT             override the variant's preset step count
+  --cfg FLOAT             override the variant's preset CFG
+  --seed INT              fixed seed for reproducibility
+  --output / -o PATH      output file (.flac / .wav / .mp3) — default is
+                          output/<slug>_<seed>.flac
+  --master {auto|off|default|edm|trap|chill|orchestral|jazz}
+                          mastering preset (default 'auto' = pick from prompt)
+  --target-lufs FLOAT     override the preset's target LUFS
+  --keep-raw              keep the pre-mastered file alongside the mastered output
+```
+
+See `SKILL.md` for the full prompt-engineering recipe, the variant comparison table, the dynamics-preserving prompt vocabulary, and the mastering preset details.
+
+## How the mastering works
+
+Most "mastering" tools crush dynamics. This one is built around the principle that you cannot restore dynamics the generator never produced — but you can stop *destroying* what's there. The chain does the bare minimum:
+
+```
+raw.flac
+  ├─ HighpassFilter(20–30 Hz)        remove sub-rumble
+  ├─ LowShelf(–1..2 dB @ 150–200 Hz) tame mud
+  ├─ PeakFilter(+1..2 dB @ 2–4 kHz)  presence (additive)
+  ├─ HighShelf(+1.5..3 dB @ 10–12 k) air
+  ├─ Distortion(0..4 dB)             light tape warmth
+  ├─ Gain match to target LUFS       (capped at +6 dB to avoid boosting silence)
+  ├─ Clipping ceiling (–0.8..–2 dBFS) brick-wall safety
+mastered.flac
+```
+
+**No compressor in the default chain.** No `loudnorm LRA=X`. Both squash dynamics. Validated against orchestral material with **LRA preserved within ~1 LU** (typical 22 → 22.9 on a 23 LU source).
+
+## Project structure
+
+```
+aeon-music-maker/
+├── README.md            this file
+├── AGENTS.md            agent setup + invocation contract
+├── SKILL.md             full prompt-engineering + mastering guide
+├── ATTRIBUTION.md       upstream credits
+├── LICENSE              MIT
+├── .env.example         all configurable env vars
+├── setup.sh             first-time install
+├── sync.sh              incremental update (pull + delta-fetch missing models)
+├── requirements.txt     python deps (pedalboard, librosa, etc.)
+├── scripts/
+│   ├── music_maker.py     main CLI
+│   └── music_mastering.py mastering chain (also callable standalone)
+└── templates/
+    ├── ace_step_music_apg_api.json     full-quality APG chain (xl_base / xl_sft)
+    └── ace_step_music_simple_api.json  fast simple-KSampler (turbo / merged variants)
+```
+
+## License
+
+MIT. See `LICENSE`.
+
+## Credits
+
+- **ACE Step 1.5** by [StepFun](https://github.com/ace-step/ACE-Step) — the music generation model
+- **Pedalboard** by [Spotify](https://github.com/spotify/pedalboard) — Python audio FX framework powering the mastering chain
+- **librosa**, **soundfile**, **numpy**, **scipy** — audio analysis/IO substrate
+
+Full attribution in `ATTRIBUTION.md`.
+
+## See also
+
+Sister repos in the AEON Media Production family:
+
+- [`aeon-radio-drama`](https://github.com/AEON-7/aeon-radio-drama) — full radio drama production (dialogue + music + SFX + sidechain mix)
+- [`aeon-movie-maker`](https://github.com/AEON-7/aeon-movie-maker) — fast cinematic video via LTX 2.3 22B
+- [`aeon-music-video`](https://github.com/AEON-7/aeon-music-video) — audio-reactive video generation
+- [`comfyui-aeon-spark`](https://github.com/AEON-7/comfyui-aeon-spark) — base ComfyUI Docker stack with pre-staged models

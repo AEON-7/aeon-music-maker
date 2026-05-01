@@ -1,0 +1,12 @@
+# aeon-music-maker — Python dependencies.
+# Install with: pip install -r requirements.txt
+#
+# These are runtime deps only. ComfyUI itself + the ACE Step models live
+# separately on your ComfyUI server (not pip-installable).
+
+pedalboard>=0.9.0       # Spotify's audio FX library, powers the mastering chain
+librosa>=0.10.0         # measure/RMS analysis for diagnostic + mastering metrics
+soundfile>=0.12.0       # WAV/FLAC IO at the Python layer
+numpy>=1.24
+scipy>=1.10             # signal.butter for filter design (mastering)
+requests>=2.28          # ComfyUI HTTP API client (urllib also works; this is for sync.sh helpers)
